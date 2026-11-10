@@ -1,12 +1,14 @@
-"""Delegate to HA's complete local agent before an existing conversation agent."""
+"""Handle accepted strict local intents before an existing conversation agent."""
 
 import asyncio
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 
+from hassil.recognize import RecognizeResult
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import STATE_HOME, STATE_NOT_HOME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import chat_session, intent
@@ -65,12 +67,45 @@ class LocalFirstConversation(conversation.ConversationEntity):
         """Let the destination handle languages the local agent cannot match."""
         return "*"
 
+    def _reject_intent(self, result: RecognizeResult) -> bool:
+        """Filter before execution; True tells HA not to handle this match."""
+        # Delayed commands can later re-enter the unguarded full HA agent.
+        if "conversation_command" in result.entities:
+            return True
+        if result.intent.name != intent.INTENT_GET_STATE:
+            return False
+
+        # Finite state vocabularies and exact exposed names come from HA's grammar.
+        # Wildcard query slots need validation, not a blanket GetState exclusion.
+        for slot in result.entities.values():
+            if not slot.is_wildcard:
+                continue
+            domain = result.entities.get("domain")
+            query_domain = domain.value if domain else result.context.get("domain")
+            if slot.name != "state" or query_domain != "person":
+                return True
+            # Use canonical HA states, not observed person locations. Do not mutate
+            # cached recognition results to normalize a guessed location.
+            locations = {STATE_HOME, STATE_NOT_HOME}
+            locations.update(
+                zone.name
+                for zone in self.hass.states.async_all("zone")
+                if zone.entity_id != "zone.home"
+            )
+            if slot.value not in locations:
+                return True
+        return False
+
     async def _async_handle_message(
         self, user_input: conversation.ConversationInput, chat_log: conversation.ChatLog
     ) -> conversation.ConversationResult:
-        # A deterministic child ID preserves gazetteer references across turns.
-        # HA owns both sessions, their authorization, and their expiry.
+        # Keep provisional local failures out of the outer history and stream.
         local_id = f"{self.unique_id}:local:{chat_log.conversation_id}"
+        local_input = replace(
+            user_input,
+            conversation_id=local_id,
+            agent_id=conversation.HOME_ASSISTANT_AGENT,
+        )
         local_result = None
         local_steps = []
         try:
@@ -78,25 +113,39 @@ class LocalFirstConversation(conversation.ConversationEntity):
                 chat_session.async_get_chat_session(
                     self.hass, local_id, context=user_input.context
                 ) as session,
-                conversation.async_get_chat_log(self.hass, session) as local_log,
+                conversation.async_get_chat_log(
+                    self.hass, session, local_input
+                ) as local_log,
             ):
                 start = len(local_log.content)
                 try:
                     async with asyncio.timeout(LOCAL_TIMEOUT):
-                        local_result = await conversation.async_converse(
-                            self.hass,
-                            user_input.text,
-                            local_id,
-                            user_input.context,
-                            language=user_input.language,
-                            agent_id=conversation.HOME_ASSISTANT_AGENT,
-                            device_id=user_input.device_id,
-                            satellite_id=user_input.satellite_id,
-                            extra_system_prompt=user_input.extra_system_prompt,
+                        trigger_response = (
+                            await conversation.async_handle_sentence_triggers(
+                                self.hass, local_input, local_log
+                            )
                         )
+                        if trigger_response is not None:
+                            response = intent.IntentResponse(
+                                language=user_input.language
+                            )
+                            response.async_set_speech(trigger_response)
+                        else:
+                            await conversation.async_prepare_intents(
+                                self.hass, user_input.language
+                            )
+                            response = await conversation.async_handle_intents(
+                                self.hass,
+                                local_input,
+                                local_log,
+                                intent_filter=self._reject_intent,
+                            )
+                        if response is not None:
+                            local_result = conversation.ConversationResult(
+                                response=response, conversation_id=local_id
+                            )
                 finally:
-                    # HA's gazetteer can drop earlier frames from the final error.
-                    # Preserve this turn's actual tool outcomes, not old history.
+                    # Preserve available tool outcomes, including on timeout.
                     calls = {
                         tool.id: tool.tool_args
                         for item in local_log.content[start:]
@@ -119,9 +168,10 @@ class LocalFirstConversation(conversation.ConversationEntity):
                 "reason": "Local handling raised or timed out",
             }
         else:
-            response = local_result.response
+            response = local_result.response if local_result else None
             if (
-                response.response_type is not intent.IntentResponseType.ERROR
+                response is not None
+                and response.response_type is not intent.IntentResponseType.ERROR
                 and not response.failed_results
             ):
                 chat_log.async_add_assistant_content_without_tools(
@@ -139,17 +189,23 @@ class LocalFirstConversation(conversation.ConversationEntity):
                         "agent_id": conversation.HOME_ASSISTANT_AGENT,
                     },
                 )
-            outcome = {
-                "completion": "reported_failure",
-                "response": response.as_dict(),
-                # as_dict omits target lists on top-level errors.
-                "completed_targets": [
-                    asdict(target) for target in response.success_results
-                ],
-                "failed_targets": [
-                    asdict(target) for target in response.failed_results
-                ],
-            }
+            if response is None:
+                outcome = {
+                    "completion": "not_handled",
+                    "reason": "No accepted strict local intent response",
+                }
+            else:
+                outcome = {
+                    "completion": "reported_failure",
+                    "response": response.as_dict(),
+                    # as_dict omits target lists on top-level errors.
+                    "completed_targets": [
+                        asdict(target) for target in response.success_results
+                    ],
+                    "failed_targets": [
+                        asdict(target) for target in response.failed_results
+                    ],
+                }
         outcome["local_steps"] = local_steps
 
         handoff = (
@@ -207,6 +263,8 @@ class LocalFirstConversation(conversation.ConversationEntity):
             ]
             if local_speech and local_speech not in completed_speech:
                 completed_speech.append(local_speech)
+            if not completed_speech and outcome["completion"] == "not_handled":
+                completed_speech.append("No accepted local intent.")
             fallback_speech = result.response.speech.get("plain", {}).get("speech", "")
             result.response.async_set_speech(
                 f"Local result: {' '.join(completed_speech) or 'Completion uncertain.'} Fallback: {fallback_speech}"
