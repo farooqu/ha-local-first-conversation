@@ -35,6 +35,18 @@ The retained suite, `tests/test_compatibility.py`, passes **12 tests** through t
 
 Run from a fresh environment using the commands in the [README](../README.md). The test harness does not depend on HA's separately versioned third-party pytest fixture package.
 
+## Routing in Assist debug output
+
+The router returns a `ConversationResult` subclass whose `as_dict()` preserves HA's response, conversation ID, and continuation flag and adds `local_first`. HA 2026.11.1 carries that field into `intent-end.data.intent_output`, retained pipeline debug runs, and downloaded debug JSON. It is result metadata, not assistant text, a fabricated tool call, or an addition to the model prompt. No HA pipeline or frontend code is patched.
+
+`route: local` identifies `conversation.home_assistant`; intent matching and gazetteer remain one destination. `route: fallback` identifies the configured fallback entity, plus the local completion category and available response type, error code, and failed-target count. It names the selected destination even if that destination is unavailable or fails. The final response's `response_type` determines whether an answer succeeded; a fallback route alone is not evidence of successful model inference. Counts describe only the available final local response, not physical completion or all prior gazetteer frames.
+
+The existing real Assist test checks a local state answer, a gazetteer-resolved command, a no-match handoff, and an `action_done` partial failure with one failed target. Existing timeout and provider-error tests also check metadata. Streaming, continuation, and original history assertions remain intact. HA's own `processed_locally` stays false when it delegates to this router, including on router-local answers; changing that core-owned flag would misrepresent the pipeline's own shortcut.
+
+In the unmodified frontend **20261028.5** shipped with HA 2026.11.1, the **full-run Raw panel at the bottom** visibly renders `intent.intent_output.local_first`. Both local and synthetic fallback cases were submitted through the frontend's text debug runner, and their rendered YAML was inspected. A downloaded fallback debug JSON contained the same metadata. The smaller NLP Raw panel was blank: its `readOnly autoUpdate` attributes do not match the YAML editor's `read-only auto-update` attributes. The bottom panel uses the correct attributes. This upstream rendering problem was not patched by the extension.
+
+Old runs cannot gain metadata retroactively. Pipeline sentence triggers and other paths that bypass the router do not produce it. Normal HA debug retention applies; the extension adds no new transcript store. An exported `agent_detail` conversation trace would not solve the timeline requirement: nested `async_converse` calls create separate traces, and that three-entry trace buffer is not the pipeline debug API the frontend displays.
+
 ## Session and streaming design
 
 The router uses the normal `ConversationEntity` chat-log lifecycle. Local delegation gets a deterministic child conversation ID derived from the router entry and outer conversation ID. `async_get_chat_session` and `async_get_chat_log` own authorization, lifetime, nesting, and cleanup; the router maintains no separate session cache.

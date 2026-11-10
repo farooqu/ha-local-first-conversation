@@ -224,6 +224,8 @@ async def test_fallback_errors_and_invalid_configuration(hass, home, router):
     result = await ask(hass, router, "write a poem")
     assert result.response.response_type is intent.IntentResponseType.ERROR
     assert "Fallback failed" in result.response.speech["plain"]["speech"]
+    assert result.as_dict()["local_first"]["route"] == "fallback"
+    assert result.as_dict()["local_first"]["agent_id"] == router[1].entity_id
     options = await hass.config_entries.options.async_init(router[2].entry_id)
     options = await hass.config_entries.options.async_configure(
         options["flow_id"], {"fallback_agent": router[0]}
@@ -312,8 +314,13 @@ async def test_local_timeout_is_uncertain_and_cancellation_propagates(
     try:
         task = asyncio.create_task(ask(hass, router, "open the bedrom blinds"))
         await asyncio.wait_for(entered.wait(), 1)
-        await task
+        result = await task
         assert outcome(router[1])["completion"] == "uncertain"
+        assert result.as_dict()["local_first"] == {
+            "route": "fallback",
+            "agent_id": router[1].entity_id,
+            "local_outcome": "uncertain",
+        }
         entered.clear()
         task = asyncio.create_task(ask(hass, router, "open the bedrom blinds"))
         await asyncio.wait_for(entered.wait(), 1)
@@ -398,17 +405,52 @@ async def test_real_assist_pipeline_triggers_stream_and_shortcut(hass, home, rou
         ["spike trigger"], triggered
     )
     try:
-        await run("spike trigger")
+        events = await run("spike trigger")
         assert triggers == ["spike trigger"]
         assert not router[1].inputs
+        end = next(event for event in events if event.type == "intent-end")
+        assert "local_first" not in end.data["intent_output"]
         events = await run("write a poem about my kitchen lights")
         deltas = [event.data for event in events if event.type == "intent-progress"]
         assert "Fallback " in str(deltas) and "answer" in str(deltas)
         assert "Sorry" not in str(deltas)
         end = next(event for event in events if event.type == "intent-end")
         assert end.data["intent_output"]["continue_conversation"]
-        await run("turn on the kichen lights")
+        assert end.data["intent_output"]["local_first"] == {
+            "route": "fallback",
+            "agent_id": router[1].entity_id,
+            "local_outcome": "reported_failure",
+            "local_response_type": "error",
+            "local_error_code": "no_intent_match",
+            "local_failed_targets": 0,
+        }
+        # The debug UI serializes intent_output in full-run Raw data. Both local
+        # recognizers are one built-in agent; do not infer a subroute from speech.
+        for text in (
+            "turn on the kichen lights",
+            "is the kitchen ceiling lights on",
+        ):
+            events = await run(text)
+            end = next(event for event in events if event.type == "intent-end")
+            assert end.data["intent_output"]["local_first"] == {
+                "route": "local",
+                "agent_id": "conversation.home_assistant",
+            }
+            # Core's flag describes its shortcut, not the router's delegation.
+            assert end.data["processed_locally"] is False
         assert hass.states.get("light.kitchen_ceiling").state == "on"
+
+        hass.states.async_set(
+            "light.kitchen_strip", "unavailable", {"friendly_name": "Kitchen Strip"}
+        )
+        events = await run("turn on the kitchen lights")
+        end = next(event for event in events if event.type == "intent-end")
+        routing = end.data["intent_output"]["local_first"]
+        assert routing["route"] == "fallback"
+        assert routing["agent_id"] == router[1].entity_id
+        assert routing["local_response_type"] == "action_done"
+        assert routing["local_error_code"] is None
+        assert routing["local_failed_targets"] == 1
 
         # Contrast the released shortcut with the router, using the same home and LLM.
         shortcut = replace(

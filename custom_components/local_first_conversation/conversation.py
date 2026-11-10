@@ -2,8 +2,8 @@
 
 import asyncio
 import json
-from dataclasses import asdict
-from typing import Literal
+from dataclasses import asdict, dataclass
+from typing import Any, Literal
 
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry
@@ -16,6 +16,17 @@ from . import CONF_FALLBACK
 
 LOCAL_TIMEOUT = 30
 FALLBACK_TIMEOUT = 120
+
+
+@dataclass(kw_only=True)
+class RoutedResult(conversation.ConversationResult):
+    """Expose routing in Assist's intent-end Raw data, without changing speech."""
+
+    local_first: dict[str, Any]
+
+    def as_dict(self) -> dict[str, Any]:
+        """Keep HA's result contract and add extension-specific debug metadata."""
+        return {**super().as_dict(), "local_first": self.local_first}
 
 
 def valid_fallback(hass: HomeAssistant, agent_id: str) -> bool:
@@ -119,8 +130,15 @@ class LocalFirstConversation(conversation.ConversationEntity):
                         content=response.speech.get("plain", {}).get("speech", ""),
                     )
                 )
-                local_result.conversation_id = chat_log.conversation_id
-                return local_result
+                return RoutedResult(
+                    response=response,
+                    conversation_id=chat_log.conversation_id,
+                    continue_conversation=local_result.continue_conversation,
+                    local_first={
+                        "route": "local",
+                        "agent_id": conversation.HOME_ASSISTANT_AGENT,
+                    },
+                )
             outcome = {
                 "completion": "reported_failure",
                 "response": response.as_dict(),
@@ -206,4 +224,20 @@ class LocalFirstConversation(conversation.ConversationEntity):
                     content=result.response.speech.get("plain", {}).get("speech", ""),
                 )
             )
-        return result
+        routing = {
+            "route": "fallback",
+            "agent_id": self._fallback,
+            "local_outcome": outcome["completion"],
+        }
+        if local_result is not None:
+            routing.update(
+                local_response_type=local_result.response.response_type.value,
+                local_error_code=local_result.response.error_code,
+                local_failed_targets=len(local_result.response.failed_results),
+            )
+        return RoutedResult(
+            response=result.response,
+            conversation_id=result.conversation_id,
+            continue_conversation=result.continue_conversation,
+            local_first=routing,
+        )

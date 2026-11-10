@@ -56,6 +56,23 @@ The gear beside the conversation agent is **Agent settings**. It opens the route
 
 These are captures of the real HA 2026.11.1 frontend with HA's Ollama integration in an isolated test instance. The router setup accepted the Ollama conversation entity, and its options show the saved selection. The pipeline was saved and reopened to verify the router selection and disabled shortcut; its Agent settings button opened the same Options dialog. Ollama's model-list endpoint was stubbed locally; no model inference was run. These screenshots demonstrate configuration, not provider behavior. No marketplace setup or live-household configuration is shown.
 
+### See which agent answered
+
+Open your assistant's **Debug** view, select a run, and expand the **Raw** panel at the bottom of the timeline. Find `intent → intent_output → local_first` (also present in the `intent-end` event):
+
+- `route: local` with `agent_id: conversation.home_assistant` means HA's built-in agent returned the answer.
+- `route: fallback` identifies the configured destination in `agent_id`. `local_outcome`, `local_response_type`, `local_error_code`, and `local_failed_targets`, when available, explain the handoff. Check the final `response_type` too: a fallback error does not mean the LLM answered successfully.
+
+The timeline's **Engine** still names the router. In HA 2026.11.1, **Processed locally** describes HA's own shortcut and can show `false` even when this router returned a local answer. Use `local_first` for the router's decision. That release's smaller NLP **Raw** panel rendered blank during testing; the bottom full-run **Raw** panel displayed the data correctly. The downloadable debug JSON also includes it.
+
+These cropped captures show the actual HA 2026.11.1 debug output for a local state question and a synthetic fallback answer. They do not demonstrate a real model request.
+
+![Local answer — HA built-in conversation agent](docs/images/debug-local.png)
+
+![Fallback answer — synthetic destination and local refusal reason](docs/images/debug-fallback.png)
+
+Metadata is added only to results from the updated router, not to older runs or requests handled before the router, such as pipeline sentence triggers. It groups intent matching and gazetteer as the built-in local agent, adds no text to the spoken answer or model prompt, and creates no separate transcript log. The fields use HA's existing pipeline/debug retention.
+
 ## Safety and conversation limits
 
 - The original utterance, language, user context, device ID, and satellite ID are passed through. HA still controls exposure, authorization, and session ownership; the router grants no extra tools or permissions.
