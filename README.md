@@ -20,7 +20,7 @@ These are routing differences, not measured claims about household latency, mode
 
 ### Install the integration files
 
-If Marketplace/HACS is already available in your test instance, open this project's public GitHub repository with the button below. Add it as a custom **Integration** repository if prompted, download it, and restart HA. This repository is not included in the default catalog.
+Open this project's public GitHub repository in **Marketplace** with the button below. Add it as a custom **Integration** repository if prompted, download it, and restart HA. This repository is not included in the default catalog.
 
 [![Open Local First Conversation in Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=farooqu&repository=ha-local-first-conversation&category=integration)
 
