@@ -18,14 +18,27 @@ These are routing differences, not measured claims about household latency, mode
 
 ## Try the spike in a test instance
 
-1. Use HA 2026.11.1. The integration rejects older versions; newer versions have not been verified.
-2. Copy `custom_components/local_first_conversation` from the [public repository](https://github.com/farooqu/ha-local-first-conversation) into your HA configuration's `custom_components` directory, then restart HA.
-3. Configure an LLM integration normally, including its allowed tools and exposed entities.
-4. Add **Local First Conversation** under **Settings → Devices & services → Add integration**. Give it a name and select the existing fallback conversation entity.
-5. Select the new router as the conversation agent in your Assist pipeline. **Disable Prefer handling commands locally** in that pipeline; the router owns that decision. HA's sentence triggers still run normally.
-6. Test with synthetic devices before considering household use. Change the fallback through the integration's options. Router-to-router fallbacks, including self-selection, are rejected.
+### Install the integration files
 
-Setup accepts existing non-router conversation entities; it cannot prove an arbitrary agent is an LLM or honors the handoff prompt. Select one that consumes `ConversationInput.extra_system_prompt`. The spike does not yet include HACS distribution, release automation, a compatibility matrix across HA releases, or a license decision for public release.
+If Marketplace/HACS is already available in your test instance, open this project's public GitHub repository with the button below. Add it as a custom **Integration** repository if prompted, download it, and restart HA. This repository is not included in the default catalog.
+
+[![Open Local First Conversation in Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=farooqu&repository=ha-local-first-conversation&category=integration)
+
+For manual installation, copy `custom_components/local_first_conversation` from the [public repository](https://github.com/farooqu/ha-local-first-conversation) into your HA configuration's `custom_components` directory, then restart HA.
+
+### Add and select the router
+
+After the files are installed and HA has restarted, this button opens the integration's setup form in your instance. **It does not download or install the files.**
+
+[![Add Local First Conversation to Home Assistant](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=local_first_conversation)
+
+1. Use HA 2026.11.1. The integration rejects older versions; newer versions have not been verified.
+2. Configure an LLM integration normally, including its allowed tools and exposed entities.
+3. Use the button above, or add **Local First Conversation** under **Settings → Devices & services → Add integration**. Give it a name and select the existing fallback conversation entity.
+4. Select the new router as the conversation agent in your Assist pipeline. **Disable Prefer handling commands locally** in that pipeline; the router owns that decision. HA's sentence triggers still run normally.
+5. Test with synthetic devices before considering household use. Change the fallback through the integration's options. Router-to-router fallbacks, including self-selection, are rejected.
+
+Setup accepts existing non-router conversation entities; it cannot prove an arbitrary agent is an LLM or honors the handoff prompt. Select one that consumes `ConversationInput.extra_system_prompt`. The spike does not yet include default-catalog inclusion, release automation, a compatibility matrix across HA releases, or a license decision for public release.
 
 ### Integration-specific settings
 

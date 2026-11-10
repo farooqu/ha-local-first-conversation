@@ -81,4 +81,4 @@ Difference between medians: **0.123 ms added** in this orb and fixture. This inc
 
 ## Release work intentionally deferred
 
-Real-provider contract tests, HA-version coverage, language coverage beyond the English spike, HACS/release packaging, a public-release license decision, and household acceptance testing remain outside this spike. Start with an isolated test instance, not production automation.
+Real-provider contract tests, HA-version coverage, language coverage beyond the English spike, default-catalog publication, release automation, a public-release license decision, and household acceptance testing remain outside this spike. The repository includes minimal `hacs.json` metadata and README buttons for custom-repository installation and integration setup; these do not imply catalog acceptance or release readiness. Start with an isolated test instance, not production automation.
