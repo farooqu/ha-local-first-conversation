@@ -1,0 +1,17 @@
+{
+  "title": "Local First Conversation",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Local First Conversation",
+        "description": "Select an existing LLM conversation agent. Disable Prefer handling commands locally in the Assist pipeline that uses this router.",
+        "data": {"name": "Name", "fallback_agent": "Fallback conversation agent"}
+      }
+    },
+    "error": {"invalid_fallback": "Select an available non-router conversation agent."}
+  },
+  "options": {
+    "step": {"init": {"data": {"fallback_agent": "Fallback conversation agent"}}},
+    "error": {"invalid_fallback": "Select an available non-router conversation agent."}
+  }
+}

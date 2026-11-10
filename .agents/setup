@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+SECONDS=0
+
+echo "Checking native build tools"
+if ! dpkg-query -W -f='${Status}' build-essential 2>/dev/null | grep -qx 'install ok installed'; then
+    sudo apt-get update
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential
+fi
+
+echo "Preparing Python 3.14"
+uv python install --upgrade 3.14
+uv venv --python 3.14 --allow-existing .venv
+
+echo "Installing the latest stable Home Assistant and test tools"
+latest_ha="$(.venv/bin/python - <<'PY'
+import json
+from urllib.request import urlopen
+
+with urlopen("https://pypi.org/pypi/homeassistant/json", timeout=30) as response:
+    print(json.load(response)["info"]["version"])
+PY
+)"
+uv pip install --python .venv/bin/python "homeassistant==$latest_ha" -r requirements-dev.txt
+
+echo "Installing integration dependencies declared by Home Assistant $latest_ha"
+.venv/bin/python - <<'PY' | uv pip install --python .venv/bin/python -r -
+import json
+from pathlib import Path
+
+import homeassistant
+
+components = Path(homeassistant.__file__).parent / "components"
+requirements = set()
+for domain in ("conversation", "assist_pipeline", "tts", "ffmpeg"):
+    manifest = json.loads((components / domain / "manifest.json").read_text())
+    requirements.update(manifest.get("requirements", []))
+print("\n".join(sorted(requirements)))
+PY
+
+.venv/bin/python - <<'PY'
+import platform
+from importlib.metadata import version
+
+print(f"Python: {platform.python_version()}")
+for package in ("homeassistant", "gazetteer-matcher", "hassil", "home-assistant-intents", "pytest", "ruff"):
+    print(f"{package}: {version(package)}")
+PY
+echo "Orb setup finished in ${SECONDS}s. Run .venv/bin/python -m pytest -q to verify compatibility."
