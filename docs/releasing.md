@@ -34,4 +34,6 @@ Push the release commit to GitHub, then create and push an annotated `vVERSION` 
 
 The [release workflow](../.github/workflows/release.yml) validates the tag, manifest, and changelog, runs tests and lint checks, then creates a GitHub Release using that changelog entry. Pull requests and pushes to `main` run validation without publishing. Marketplace installs from the tagged source; no custom ZIP is needed.
 
+If infrastructure fails before publication, use **Actions → Validate and release → Run workflow** on `main` and enter the existing tag. This runs the current workflow against the tagged source without moving the tag.
+
 The workflow does not bump versions or overwrite releases. Fix validation failures before publishing. Never move a published tag; use a new version for corrections.
