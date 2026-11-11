@@ -1,4 +1,4 @@
-"""Local-first conversation compatibility spike."""
+"""Set up the Local First Conversation integration."""
 
 from awesomeversion import AwesomeVersion
 from homeassistant.config_entries import ConfigEntry
@@ -16,7 +16,9 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up a router."""
     if AwesomeVersion(HA_VERSION) < AwesomeVersion("2026.11.1"):
-        raise ConfigEntryError("This spike requires Home Assistant 2026.11.1 or newer")
+        raise ConfigEntryError(
+            "Local First Conversation requires Home Assistant 2026.11.1 or newer"
+        )
     await hass.config_entries.async_forward_entry_setups(entry, [Platform.CONVERSATION])
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     return True

@@ -71,7 +71,7 @@ async def test_validated_person_and_door_queries(hass, home, router):
         ),
     ):
         entry = registry.async_get_or_create(
-            domain, "spike", name, suggested_object_id=name
+            domain, "synthetic", name, suggested_object_id=name
         )
         registry.async_update_entity(entry.entity_id, name=friendly)
         hass.states.async_set(
@@ -240,12 +240,12 @@ async def test_device_satellite_context_and_session_permissions(hass, home, rout
     """Use a registered satellite's room for a local command; retain identity for fallback."""
     device = device_registry.async_get(hass).async_get_or_create(
         config_entry_id=router[2].entry_id,
-        identifiers={("spike", "satellite")},
+        identifiers={("synthetic", "satellite")},
         name="Kitchen satellite",
     )
     device_registry.async_get(hass).async_update_device(device.id, area_id=home[0].id)
     satellite = entity_registry.async_get(hass).async_get_or_create(
-        "assist_satellite", "spike", "satellite", device_id=device.id
+        "assist_satellite", "synthetic", "satellite", device_id=device.id
     )
     user = await hass.auth.async_create_user("Synthetic owner")
     context = Context(user_id=user.id)
@@ -439,7 +439,7 @@ async def test_real_assist_pipeline_triggers_stream_and_shortcut(hass, home, rou
         conversation_engine=router[0],
         conversation_language="en",
         language="en",
-        name="Spike",
+        name="Synthetic assistant",
         stt_engine=None,
         stt_language=None,
         tts_engine=None,
@@ -477,17 +477,17 @@ async def test_real_assist_pipeline_triggers_stream_and_shortcut(hass, home, rou
         return "Synthetic trigger response"
 
     unsubscribe = conversation.get_agent_manager(hass).register_trigger(
-        ["spike trigger"], triggered
+        ["synthetic trigger"], triggered
     )
     try:
-        events = await run("spike trigger")
-        assert triggers == ["spike trigger"]
+        events = await run("synthetic trigger")
+        assert triggers == ["synthetic trigger"]
         assert not router[1].inputs
         end = next(event for event in events if event.type == "intent-end")
         assert "local_first" not in end.data["intent_output"]
-        result = await ask(hass, router, "spike trigger")
+        result = await ask(hass, router, "synthetic trigger")
         assert result.response.speech["plain"]["speech"] == "Synthetic trigger response"
-        assert triggers == ["spike trigger", "spike trigger"]
+        assert triggers == ["synthetic trigger", "synthetic trigger"]
         events = await run("write a poem about my kitchen lights")
         deltas = [event.data for event in events if event.type == "intent-progress"]
         assert "Fallback " in str(deltas) and "answer" in str(deltas)

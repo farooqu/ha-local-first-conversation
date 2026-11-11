@@ -23,7 +23,7 @@ from homeassistant.setup import async_setup_component
 
 @pytest.fixture
 async def hass(tmp_path, unused_tcp_port):
-    """Boot only the components needed by the spike; never connect to a real home."""
+    """Boot only the components needed by the tests; never connect to a real home."""
     shutil.copytree(
         Path(__file__).parents[1] / "custom_components", tmp_path / "custom_components"
     )
@@ -68,7 +68,7 @@ def home(hass):
     ):
         domain, object_id = entity_id.split(".")
         entry = registry.async_get_or_create(
-            domain, "spike", object_id, suggested_object_id=object_id
+            domain, "synthetic", object_id, suggested_object_id=object_id
         )
         registry.async_update_entity(entry.entity_id, name=name, area_id=area.id)
         hass.states.async_set(entity_id, "off", {"friendly_name": name})
@@ -103,7 +103,7 @@ class RecordingFallback(conversation.ConversationEntity):
     """Synthetic provider: real HA prompt preparation and streaming, no model/API."""
 
     _attr_name = "Synthetic fallback"
-    _attr_unique_id = "spike_fallback"
+    _attr_unique_id = "synthetic_fallback"
     _attr_supports_streaming = True
     supported_languages = "*"
 
@@ -115,7 +115,7 @@ class RecordingFallback(conversation.ConversationEntity):
     async def _async_handle_message(self, user_input, chat_log):
         self.inputs.append(user_input)
         await chat_log.async_provide_llm_data(
-            user_input.as_llm_context("spike"),
+            user_input.as_llm_context("synthetic"),
             user_llm_prompt="Synthetic fallback, no tools.",
             user_extra_system_prompt=user_input.extra_system_prompt,
         )
