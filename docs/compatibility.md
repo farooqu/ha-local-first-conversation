@@ -49,10 +49,11 @@ The router passes this turn's available responses, completed/failed targets, and
 
 ## Run compatibility tests
 
-Use `uv`, Python 3.14.2, and a C/C++ build toolchain. From the repository root, create a fresh environment:
+Use `uv`, Python 3.14, and a C/C++ build toolchain. CI uses the latest Python 3.14 patch release. From the repository root, create a fresh environment:
 
 ```sh copy Copy Test Commands
-uv venv --python 3.14.2
+uv python install --upgrade 3.14
+uv venv --python 3.14
 uv pip install -r requirements-test.txt
 .venv/bin/python -m pytest -q
 .venv/bin/ruff check custom_components tests scripts
