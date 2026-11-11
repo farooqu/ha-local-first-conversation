@@ -4,6 +4,12 @@ Changes by version. See [GitHub Releases](https://github.com/farooqu/ha-local-fi
 
 ## [Unreleased]
 
+## [0.1.1]
+
+### Fixed
+
+- Package the integration icon so it appears in Home Assistant and Marketplace after installation.
+
 ## [0.1.0]
 
 ### Added

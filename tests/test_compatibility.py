@@ -2,14 +2,48 @@
 
 import asyncio
 import json
+import struct
 from dataclasses import replace
 
 import pytest
+from aiohttp import ClientSession
 from homeassistant.components import conversation
 from homeassistant.components.conversation.chat_log import DATA_CHAT_LOGS
 from homeassistant.core import Context
 from homeassistant.helpers import chat_session, device_registry, entity_registry, intent
 from homeassistant.setup import async_setup_component
+
+
+async def test_brand_images_are_served_locally(hass, unused_tcp_port):
+    """HA and Marketplace serve the packaged icon, including theme/logo fallbacks."""
+    assert await async_setup_component(hass, "brands", {})
+    user = await hass.auth.async_create_user("Brand image test")
+    refresh_token = await hass.auth.async_create_refresh_token(
+        user, client_id="http://127.0.0.1/"
+    )
+    token = hass.auth.async_create_access_token(refresh_token)
+    await hass.async_start()
+
+    async with ClientSession(headers={"Authorization": f"Bearer {token}"}) as client:
+        for namespace in ("integration", "marketplace"):
+            for image, size in (
+                ("icon.png", 256),
+                ("icon@2x.png", 512),
+                ("dark_icon.png", 256),
+                ("dark_icon@2x.png", 512),
+                ("logo.png", 256),
+                ("dark_logo.png", 256),
+            ):
+                url = (
+                    f"http://127.0.0.1:{unused_tcp_port}/api/brands/{namespace}/"
+                    f"local_first_conversation/{image}?placeholder=no"
+                )
+                async with client.get(url) as response:
+                    assert response.status == 200, (namespace, image)
+                    assert response.content_type == "image/png"
+                    data = await response.read()
+                    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+                    assert struct.unpack(">II", data[16:24]) == (size, size)
 
 
 async def ask(hass, router, text, conversation_id=None, **kwargs):

@@ -1,6 +1,6 @@
 # Local First Conversation
 
-<img src="docs/images/icon.png" alt="Local First Conversation: a home with conversation bubbles" width="128" height="128">
+<img src="custom_components/local_first_conversation/brand/icon@2x.png" alt="Local First Conversation: a conversation routed to a home or AI" width="128" height="128">
 
 A Home Assistant integration that handles supported commands and state questions locally, then sends unresolved requests to your existing LLM conversation agent. It uses Home Assistant's built-in intent handling; no additional model credentials or services are needed.
 
