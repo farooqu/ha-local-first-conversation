@@ -8,9 +8,18 @@ A Home Assistant integration that handles supported commands and state questions
 
 Each request starts locally. Successful commands and state answers return directly; unmatched requests and handling failures go to the fallback agent. Available local results accompany the handoff so the fallback knows what was already attempted.
 
-- **Commands and state questions:** exact device names and supported sentences stay local, including answers such as “off” or “unavailable.” Unlike HA 2026.11.1's **Prefer handling commands locally** shortcut, the router keeps supported state questions local even when the LLM can control devices.
+- **Commands and state questions:** exact device names and supported sentences stay local, including answers such as “off” or “unavailable.”
 - **Open-ended requests and follow-ups:** questions outside the local grammar, misspelled names, and pronouns such as “close them” go to the LLM.
 - **Delayed commands:** requests such as “turn on the lights in five minutes” go to the LLM rather than creating a local timer. Whether they can be scheduled depends on that agent's tools.
+
+## Why use it instead of prefer-local?
+
+HA 2026.11.1's **Prefer handling commands locally** already keeps supported commands, list additions, and ordinary timer requests local. The main differences are:
+
+- **Local state answers:** when the selected LLM has home-control access, HA's shortcut excludes `HassGetState`. This router allows validated strict state queries to return without a model call, avoiding LLM latency for supported questions.
+- **Failure handoff:** HA's shortcut returns a local execution error or partial failure without consulting the LLM. This router instead passes available outcomes to the fallback agent so it can address unresolved work; recovery is not guaranteed.
+
+The router uses HA's strict matcher, not its full conversation agent or Gazetteer matching. Its filter examines intent types, wildcard slots, domains, and allowed values rather than maintaining a blacklist of phrases. It does not simply restore every state-query interpretation excluded by core. See [local matching limits](docs/compatibility.md#local-matching-limits).
 
 ## Install
 

@@ -4,7 +4,11 @@
 
 Requires **Home Assistant 2026.11.1 or newer**; only 2026.11.1 has been verified. Older versions are rejected. Test newer HA versions before upgrading an installation you rely on.
 
-Automated coverage uses English requests, synthetic devices, and synthetic streaming and buffered fallback agents. Real model requests, household operation, other languages, audio/TTS, and physical satellites have not been verified. The configuration screenshots use HA's Ollama integration; they do not demonstrate model responses.
+Automated coverage uses English requests, synthetic devices, and synthetic streaming and buffered fallback agents.
+
+A separate live comparison on HA 2026.11.1 with OpenAI `gpt-6-luna` exercised 30 English text requests across three state questions, using fresh conversations and alternating agent order. All answers agreed with adjacent entity-state snapshots. Two question forms stayed local through the router; the third fell back to OpenAI. This small sample verifies those state-query paths, not general provider compatibility or failure recovery.
+
+Other languages, STT/TTS, physical satellite operation, and live device-changing commands have not been verified. The configuration screenshots use HA's Ollama integration; they do not demonstrate model responses.
 
 ## Fallback agents
 
@@ -16,12 +20,13 @@ The fallback must honor `ConversationInput.extra_system_prompt` to receive local
 
 The router uses HA's strict sentence matcher with filtering before execution, not its full conversation agent or gazetteer name correction.
 
-- State questions use HA's defined state vocabulary. Open-ended query values go to fallback, except person locations matching `home`, `not_home`, or a configured non-home zone's name. These names are case-sensitive; the home zone uses `home`, not its display name.
+- For `HassGetState`, the filter inspects the recognized slots rather than blacklisting sentence phrases. Slots matched from defined lists, such as exposed names and supported states, pass this wildcard check. A wildcard slot passes only when it is the `state` slot of a `person` query and its value exactly matches `home`, `not_home`, or a configured non-home zone's name. Otherwise the interpretation is rejected before execution and the request goes to fallback. These names are case-sensitive; the home zone uses `home`, not its display name.
+- This wildcard restriction does not apply to other intents, such as list additions with arbitrary item text. Delayed commands have a separate rejection rule.
 - Configured zones are checked on each request. An empty zone is valid; a removed zone is not.
 - Misspelled names, pronoun follow-ups, and unsupported qualified or compound requests go to fallback. Each turn starts locally, regardless of which agent answered previously.
 - Delayed device commands go to fallback before HA creates a timer. Existing timers are unaffected. Ordinary timer requests still have HA's device requirements.
 
-Strict filtering avoids unsafe interpretations observed with HA's full agent, including immediate execution of negated or future-time commands. It does not validate arbitrary custom intent handlers or guarantee how an LLM interprets a request.
+Strict filtering avoids unsafe interpretations observed with HA's full agent, including immediate execution of negated or future-time commands. It does not validate arbitrary custom intent handlers or guarantee how an LLM interprets a request. An accepted local answer with no reported error or failed targets returns directly; the router cannot detect a successful but mistaken interpretation and reconsider it through the LLM.
 
 ## Routing diagnostics
 
