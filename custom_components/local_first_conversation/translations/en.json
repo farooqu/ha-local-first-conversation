@@ -11,7 +11,10 @@
     "error": {"invalid_fallback": "Select an available non-router conversation agent."}
   },
   "options": {
-    "step": {"init": {"data": {"fallback_agent": "Fallback conversation agent"}}},
-    "error": {"invalid_fallback": "Select an available non-router conversation agent."}
+    "step": {"init": {
+      "data": {"fallback_agent": "Fallback conversation agent", "listening_marker": "Listening indicator"},
+      "data_description": {"listening_marker": "Text returned for an otherwise empty follow-up response. Defaults to 👂. Your TTS provider must recognize the same text to play a listening cue."}
+    }},
+    "error": {"invalid_fallback": "Select an available non-router conversation agent.", "empty_marker": "Enter a listening indicator containing at least one non-whitespace character."}
   }
 }

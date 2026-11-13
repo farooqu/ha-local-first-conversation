@@ -1,7 +1,7 @@
 {
   "domain": "local_first_conversation",
   "name": "Local First Conversation",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "config_flow": true,
   "dependencies": ["conversation"],
   "documentation": "https://github.com/farooqu/ha-local-first-conversation",

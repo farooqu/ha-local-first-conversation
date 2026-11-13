@@ -7,10 +7,22 @@ from homeassistant.const import __version__ as HA_VERSION
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import llm
+from homeassistant.helpers.typing import ConfigType
 
 DOMAIN = "local_first_conversation"
 CONF_FALLBACK = "fallback_agent"
+CONF_LISTENING_MARKER = "listening_marker"
+DEFAULT_LISTENING_MARKER = "👂"
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the optional tool API once, independently of router entries."""
+    from .continuation import ContinuationAPI
+
+    llm.async_register_api(hass, ContinuationAPI(hass))
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -25,7 +37,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Apply a changed fallback."""
+    """Apply changed router options."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 

@@ -51,6 +51,20 @@ To change the fallback, go to **Settings → Devices & services → Local First 
 
 ![Change the fallback in the integration options](docs/images/options.png)
 
+## Optional follow-up tool
+
+On the fallback OpenAI agent, select **Local First Conversation follow-up** alongside its existing **Assist** tool API. The API provides `listen_for_follow_up`; its description explains when to request another user turn, without editing the agent's main instructions. Other agents must support HA's selectable LLM APIs to use it.
+
+A successful tool call requests one more turn through Home Assistant's native continuation flag. Ordinary assistant speech stays unchanged. If the fallback completes with an explicitly empty response and has not already emitted speech this turn, the router supplies the configured listening indicator (default `👂`) as the response and transcript text. The model does not need to emit the marker.
+
+Change **Listening indicator** under **Settings → Devices & services → Local First Conversation → Configure** to use another string, such as `[listening]` or `Listening for more`. The default is `👂`; existing configurations keep that default. The setting applies per router and only changes otherwise empty follow-up responses. Surrounding whitespace is removed; an empty or whitespace-only indicator is not accepted. The model's tool call stays the same.
+
+A custom TTS provider can interpret a complete synthesis request containing only the configured marker (optionally surrounded by whitespace) as a listening cue and return playable audio: a chime, a short phrase, or another sound. Configure the same marker in the router and TTS provider. Keep the marker inside ordinary text on the normal synthesis path; streaming providers should wait until the request ends before deciding it is marker-only. This changes only the audio: captions and conversation history retain the configured marker. The integration does not bundle audio or implement the TTS mapping. The marker is not itself a Home Assistant continuation API; the tool request controls continuation separately.
+
+Use this option only with a compatible TTS provider and a satellite that supports follow-up turns. Other providers may speak the marker literally or produce no playable audio. Satellites that wait for response playback before reopening the microphone need an actual playable response, not empty audio. Verify playback and follow-up on your chosen device.
+
+Without a tool call, continuation keeps the fallback agent's existing behavior. An empty response without the tool remains silent and ends listening. Local successes bypass the LLM and are unchanged. Failed, incomplete, timed-out, and cancelled fallback turns do not acquire a follow-up from the tool. Calls outside an active Local First fallback turn fail, including direct use of the fallback agent.
+
 ## Check which agent handled a request
 
 Open your assistant's **Debug** view, select a run, and expand the **Raw** panel at the bottom of the timeline. Under `intent → intent_output → local_first`:
@@ -63,7 +77,7 @@ HA's **Processed locally** flag describes its own pipeline shortcut, not this ro
 ## Privacy and action safety
 
 - The fallback receives the original request and available local results, which can include household names. Earlier local answers may also appear in later LLM conversation history. HA and your provider's normal logging policies apply; the router stores no separate transcript.
-- HA exposure rules and permissions still apply. The router grants no extra tools and does not sandbox custom sentence triggers or intent handlers.
+- HA exposure rules and permissions still apply. The optional follow-up API grants no device-control tools, and the router does not sandbox custom sentence triggers or intent handlers.
 - A failed or timed-out request may have completed some actions. The handoff asks the LLM not to repeat them, but cannot enforce exactly-once execution. Check device state before repeating an uncertain command.
 
 ## Updates

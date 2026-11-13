@@ -14,7 +14,8 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import chat_session, intent
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import CONF_FALLBACK
+from . import CONF_FALLBACK, CONF_LISTENING_MARKER, DEFAULT_LISTENING_MARKER
+from .continuation import continuation_turn
 
 LOCAL_TIMEOUT = 30
 FALLBACK_TIMEOUT = 120
@@ -61,6 +62,9 @@ class LocalFirstConversation(conversation.ConversationEntity):
         self._attr_name = entry.title
         self._attr_unique_id = entry.entry_id
         self._fallback = entry.options.get(CONF_FALLBACK, entry.data[CONF_FALLBACK])
+        self._listening_marker = entry.options.get(
+            CONF_LISTENING_MARKER, DEFAULT_LISTENING_MARKER
+        )
 
     @property
     def supported_languages(self) -> Literal["*"]:
@@ -220,23 +224,25 @@ class LocalFirstConversation(conversation.ConversationEntity):
         if user_input.extra_system_prompt:
             handoff = user_input.extra_system_prompt + "\n\n" + handoff
 
+        fallback_start = len(chat_log.content)
         try:
-            if not valid_fallback(self.hass, self._fallback):
-                raise HomeAssistantError(
-                    "Configured fallback is missing, unavailable, or recursive"
-                )
-            async with asyncio.timeout(FALLBACK_TIMEOUT):
-                result = await conversation.async_converse(
-                    self.hass,
-                    user_input.text,
-                    chat_log.conversation_id,
-                    user_input.context,
-                    language=user_input.language,
-                    agent_id=self._fallback,
-                    device_id=user_input.device_id,
-                    satellite_id=user_input.satellite_id,
-                    extra_system_prompt=handoff,
-                )
+            with continuation_turn() as turn:
+                if not valid_fallback(self.hass, self._fallback):
+                    raise HomeAssistantError(
+                        "Configured fallback is missing, unavailable, or recursive"
+                    )
+                async with asyncio.timeout(FALLBACK_TIMEOUT):
+                    result = await conversation.async_converse(
+                        self.hass,
+                        user_input.text,
+                        chat_log.conversation_id,
+                        user_input.context,
+                        language=user_input.language,
+                        agent_id=self._fallback,
+                        device_id=user_input.device_id,
+                        satellite_id=user_input.satellite_id,
+                        extra_system_prompt=handoff,
+                    )
         except Exception:
             response = intent.IntentResponse(language=user_input.language)
             response.async_set_error(
@@ -273,6 +279,24 @@ class LocalFirstConversation(conversation.ConversationEntity):
             result.response.async_set_card(
                 "Local handling outcome", json.dumps(outcome, ensure_ascii=False)
             )
+        elif turn.requested:
+            result.continue_conversation = True
+            # Do not replace speech already emitted before a tool call. Streaming
+            # audio cannot be retracted by an empty final assistant response.
+            if not result.response.speech.get("plain", {}).get(
+                "speech", ""
+            ).strip() and not any(
+                isinstance(item, conversation.AssistantContent)
+                and item.content
+                and item.content.strip()
+                for item in chat_log.content[fallback_start:]
+            ):
+                result.response.async_set_speech(self._listening_marker)
+                chat_log.async_add_assistant_content_without_tools(
+                    conversation.AssistantContent(
+                        agent_id=user_input.agent_id, content=self._listening_marker
+                    )
+                )
         result.conversation_id = chat_log.conversation_id
         # Legacy/non-chat-log destinations only return speech in the result.
         if chat_log.content[-1].role == "user":
